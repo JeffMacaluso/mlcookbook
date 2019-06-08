@@ -1,6 +1,11 @@
 import numpy as np
 import pandas as pd
 
+# TODO: Add function to dynamically determine categorical columns
+# Check ideas from here https://datascience.stackexchange.com/questions/9892/how-can-i-dynamically-distinguish-between-categorical-data-and-numerical-data
+# and here https://stackoverflow.com/questions/35826912/what-is-a-good-heuristic-to-detect-if-a-column-in-a-pandas-dataframe-is-categori 
+
+
 # Printing the percentage of missing values per column
 def percent_missing(dataframe):
     '''
@@ -28,6 +33,7 @@ def iqr_indices_of_outliers(X):
     Output: An array with indices of detected outliers
 
     # Note: The function in its current form is taken from Chris Albon's Machine Learning with Python Cookbook
+    # TODO: Update this to dynamically accept multiple features at once
     '''
     q1, q3 = np.percentile(X, [25, 75])
     iqr = q3 - q1
@@ -46,6 +52,7 @@ def z_score_indices_of_outliers(X, threshold=3):
                         to be considered an outlier
                         
     Output: An array with indices of detected outliers
+    # TODO: Update this to dynamically accept multiple features at once
     '''
     X_mean = np.mean(X)
     X_stdev = np.std(X)
@@ -54,11 +61,25 @@ def z_score_indices_of_outliers(X, threshold=3):
     return outlier_indices
 
 
+def percentile_indices_of_outliers(X, percentile_threshold=0.1):
+    '''
+    Determines outliers based off of percentiles
+    
+    Input: An array of one variable to detect outliers for
+    Output: An array with indices of detected outliers
+    '''
+    diff = (1 - percentile_threshold) / 2.0
+    minval, maxval = np.percentile(X, [diff, 100 - diff])
+    outlier_indices = np.where((X < minval) | (X > maxval))
+    return outlier_indices
+
+
 def ellipses_indices_of_outliers(X, contamination=0.1):
     '''
     Detects outliers using the elliptical envelope method
     
     Input: An array of all variables to detect outliers for
+    - TODO: Put note for what contamination is
     Output: An array with indices of detected outliers
     '''
     from sklearn.covariance import EllipticEnvelope
@@ -69,10 +90,10 @@ def ellipses_indices_of_outliers(X, contamination=0.1):
     # Dropping categorical columns
     non_categorical = []
     for feature in range(X.shape[1]):
-        num_unique_values = len(np.unique(X[:, feature]))
+        num_unique_values = len(np.unique(X.iloc[:, feature]))
         if num_unique_values > 30:
             non_categorical.append(feature)
-    X = X[:, non_categorical]  # Subsetting to columns without categorical indexes
+    X = X.iloc[:, non_categorical]  # Subsetting to columns without categorical indexes
 
     # Testing if there are an adequate number of features
     if X.shape[0] < X.shape[1] ** 2.:
@@ -89,7 +110,7 @@ def ellipses_indices_of_outliers(X, contamination=0.1):
     return outlier_indices
 
 
-def isolator_forest_indices_of_outliers(X, contamination=0.1, n_estimators=100):
+def isolation_forest_indices_of_outliers(X, contamination=0.1, n_estimators=100):
     '''
     Detects outliers using the isolation forest method
     
@@ -104,13 +125,14 @@ def isolator_forest_indices_of_outliers(X, contamination=0.1, n_estimators=100):
     # Dropping categorical columns
     non_categorical = []
     for feature in range(X.shape[1]):
-        num_unique_values = len(np.unique(X[:, feature]))
+        num_unique_values = len(np.unique(X.iloc[:, feature]))
         if num_unique_values > 30:
             non_categorical.append(feature)
-    X = X[:, non_categorical]  # Subsetting to columns without categorical indexes
+    X = X.iloc[:, non_categorical]  # Subsetting to columns without categorical indexes
     
     # Creating and fitting the detector
-    outlier_detector = IsolationForest(contamination=contamination, n_estimators=n_estimators)
+    outlier_detector = IsolationForest(contamination=contamination, n_estimators=n_estimators,
+                                       behaviour='new')  # To prevent warnings
     outlier_detector.fit(X)
     
     # Predicting outliers and outputting an array with 1 if it is an outlier
@@ -134,10 +156,10 @@ def one_class_svm_indices_of_outliers(X):
     # Dropping categorical columns
     non_categorical = []
     for feature in range(X.shape[1]):
-        num_unique_values = len(np.unique(X[:, feature]))
+        num_unique_values = len(np.unique(X.iloc[:, feature]))
         if num_unique_values > 30:
             non_categorical.append(feature)
-    X = X[:, non_categorical]  # Subsetting to columns without categorical indexes
+    X = X.iloc[:, non_categorical]  # Subsetting to columns without categorical indexes
 
     # Testing if there are an adequate number of features
     if X.shape[0] < X.shape[1] ** 2.:
@@ -177,102 +199,6 @@ def outlier_report(dataframe, z_threshold=3, per_threshold=0.95, contamination=0
         num_unique_values = len(dataframe[column].unique())
         if num_unique_values < 30:
             dataframe = dataframe.drop(column, axis=1)
-    
-    # Functions for performing outlier detection
-    def iqr_indices_of_outliers(X):
-        '''
-        Determines outliers with the interquartile range (IQR) method
-    
-        Input: An array of one variable to detect outliers for
-        Output: An array with indices of detected outliers
-        '''
-        q1, q3 = np.percentile(X, [25, 75])
-        iqr = q3 - q1
-        lower_bound = q1 - (iqr * 1.5)
-        upper_bound = q3 + (iqr * 1.5)
-        outlier_indices = np.where((X > upper_bound) | (X < lower_bound))
-        return outlier_indices
-    
-    def z_score_indices_of_outliers(X):
-        '''
-        Determines outliers based off of the Z score
-    
-        Input: An array of one variable to detect outliers for
-        Output: An array with indices of detected outliers
-        '''
-        X_mean = np.mean(X)
-        X_stdev = np.std(X)
-        z_scores = [(y - X_mean) / X_stdev for y in X]
-        outlier_indices = np.where(np.abs(z_scores) > z_threshold)
-        return outlier_indices
-    
-    def percentile_indices_of_outliers(X):
-        '''
-        Determines outliers based off of percentiles
-    
-        Input: An array of one variable to detect outliers for
-        Output: An array with indices of detected outliers
-        '''
-        diff = (1 - per_threshold) / 2.0
-        minval, maxval = np.percentile(X, [diff, 100 - diff])
-        outlier_indices = np.where((X < minval) | (X > maxval))
-        return outlier_indices
-    
-    def ellipses_envelope_indices_of_outliers(X):
-        '''
-        Detects outliers using the elliptical envelope method
-    
-        Input: An array of all variables to detect outliers for
-        Output: An array with indices of detected outliers
-        '''
-        from sklearn.covariance import EllipticEnvelope
-    
-        # Creating and fitting the detector
-        outlier_detector = EllipticEnvelope(contamination=contamination)
-        outlier_detector.fit(X)
-    
-        # Predicting outliers and outputting an array with 1 if it is an outlier
-        outliers = outlier_detector.predict(X)
-        outlier_indices = np.where(outliers == -1)
-        return outlier_indices
-    
-    def isolation_forest_indices_of_outliers(X):
-        '''
-        Detects outliers using the isolation forest method
-    
-        Input: An array of all variables to detect outliers for
-        Output: An array with indices of detected outliers
-        '''
-        from sklearn.ensemble import IsolationForest
-    
-        # Creating and fitting the detector
-        outlier_detector = IsolationForest(n_estimators=n_trees,
-                                           contamination=contamination)
-        outlier_detector.fit(X)
-    
-        # Predicting outliers and outputting an array with 1 if it is an outlier
-        outliers = outlier_detector.predict(X)
-        outlier_indices = np.where(outliers == -1)
-        return outlier_indices
-    
-    def one_class_svm_indices_of_outliers(X):
-        '''
-        Detects outliers using the one class SVM method
-    
-        Input: An array of all variables to detect outliers for
-        Output: An array with indices of detected outliers
-        '''
-        from sklearn.svm import OneClassSVM
-    
-        # Creating and fitting the detector
-        outlier_detector = OneClassSVM()
-        outlier_detector.fit(X)
-    
-        # Predicting outliers and outputting an array with 1 if it is an outlier
-        outliers = outlier_detector.predict(X)
-        outlier_indices = np.where(outliers == -1)
-        return outlier_indices
-    
     
     # Dictionaries for individual features to be packaged into a master dictionary
     iqr_outlier_indices = {}
@@ -329,7 +255,7 @@ def outlier_report(dataframe, z_threshold=3, per_threshold=0.95, contamination=0
     
     # All column outlier tests
     print('All feature outlier tests')
-    ellipses_envelope_outlier_indices = ellipses_envelope_indices_of_outliers(dataframe)
+    ellipses_envelope_outlier_indices = ellipses_indices_of_outliers(dataframe)
     print('- Ellipses Envelope: {0}'.format(len(ellipses_envelope_outlier_indices[0])))
     
     isolation_forest_outlier_indices = isolation_forest_indices_of_outliers(dataframe)
