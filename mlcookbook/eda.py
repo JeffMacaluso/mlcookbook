@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
 
+# TODO: Consider adding predict missing values,
+
+#### Outliers
 # TODO: Add function to dynamically determine categorical columns
 # Check ideas from here https://datascience.stackexchange.com/questions/9892/how-can-i-dynamically-distinguish-between-categorical-data-and-numerical-data
 # and here https://stackoverflow.com/questions/35826912/what-is-a-good-heuristic-to-detect-if-a-column-in-a-pandas-dataframe-is-categori 
